@@ -1,0 +1,328 @@
+---
+title: "Class 13: RNASeq analysis with DESeq"
+author: "Aarav Prasad (PID: A17440940)"
+format: pdf
+toc: TRUE
+---
+
+## Background
+
+Today we're going to do an RNA-seq analysis of a data set on the common glucocorticoid steroid dexamethasone (dex), and we'll use DESeq for this analysis
+
+
+## Data Import
+
+Let's read the `count` data and the `metadata` about this experiment setup from the supplied csv files:
+
+```{r}
+counts <- read.csv("airway_scaledcounts.csv", row.names = 1)
+metadata <- read.csv("airway_metadata.csv")
+```
+
+```{r}
+head(counts)
+```
+
+The metadata tells us what is actually in the columns of our `counts` object
+
+```{r}
+head(metadata)
+```
+
+>Q1. How many genes are in this dataset?
+
+There are `r nrow(counts)` genes in this dataset
+
+
+>Q2. How many ‘control’ cell lines do we have?
+
+```{r}
+sum(metadata$dex == "control")
+```
+
+```{r}
+table(metadata$dex)
+```
+
+```{r}
+colnames(counts) == metadata$id
+```
+
+- Find the "control" columns in out `counts` object
+- Extract just the "control" column values for all genes
+- Calculate the average value per gene in these "control" columns
+
+```{r}
+control.inds <- metadata$dex == "control"
+control.counts <- counts[ , control.inds]
+control.mean <- rowMeans(control.counts)
+```
+
+```{r}
+head(control.mean)
+```
+
+>Q3. How would you make the above code in either approach more robust? Is there a function that could help here?
+
+We used the rowMeans() function
+
+>Q4.Now do the same for the "treated" column
+
+```{r}
+treated.inds <- metadata$dex == "treated"
+treated.counts <- counts[, treated.inds]
+treated.mean <- rowMeans(treated.counts)
+```
+
+```{r}
+head(treated.mean)
+```
+
+
+
+For book-keeping lets store these together as a new object called `meancounts`
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+```
+
+>Q5 (a). Create a scatter plot showing the mean of the treated samples against the mean of the control samples. Your plot should look something like the following.
+
+```{r}
+plot(meancounts[,1],meancounts[,2], xlab="Control", ylab="Treated")
+```
+
+>Q5 (b).You could also use the ggplot2 package to make this figure producing the plot below. What geom_?() function would you use for this plot?
+
+```{r}
+library(ggplot2)
+
+ggplot(meancounts) +
+  aes(meancounts[,1],meancounts[,2]) +
+  geom_point()
+```
+
+Our count data has too many objects, screams log transform
+
+>Q6. Try plotting both axes on a log scale. What is the argument to plot() that allows you to do this?
+
+```{r}
+plot(meancounts, log="xy")
+```
+
+We most often use log2 transform for this kind of data in bioinformatics because it makes my brain hurt less
+
+```{r}
+#Treated / Control
+
+log2( 20 / 20 )
+log2(40/20)
+log2( 20 / 40 )
+log2(80 / 20 )
+```
+We call this little fraction the "log2 fold change" as it tells us how much more or less gene expression we have in units of doubling, etc
+
+Lets calculate the log2 fold change for our `treated.mean` and `control.mean` counts and call this `log2fc`.
+
+```{r}
+meancounts$log2fc <- log2(meancounts$treated.mean / meancounts$control.mean)
+
+head(meancounts)
+```
+
+A common "rule of thumb" threshold for calling a gene "up regulated" or "down regulated" is a log2 fold-change value of +2 or -2 (or greater)
+
+```{r}
+zero.vals <- which(meancounts[,1:2]==0, arr.ind=TRUE)
+
+to.rm <- unique(zero.vals[,1])
+mycounts <- meancounts[-to.rm,]
+head(mycounts)
+```
+>Q7. What is the purpose of the `arr.ind` argument in the which() function call above? Why would we then take the first column of the output and need to call the unique() function?
+ 
+ This code removes genes with zero expression in either condition so the log2 fold-change calculation no longer produces NaN or -Inf.
+
+
+## DESeq analysis
+
+Let's do this analysis properly and not forget about the significance of the differences.
+
+For this we will use the **DESeq2** package
+
+```{r, message = FALSE}
+library(DESeq2)
+
+```
+
+To run a DESeq analyis we need at least two inputs:
+
+- `countData` i.e. our gene counts across different experiments
+- `colData` i.e. our metadata about those count columns
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = counts,
+                              colData = metadata,
+                              design =~dex)
+dds
+```
+
+Now we can run the DESeq analyis pipeline using this `dds` object that has all the inputs we need
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+head(res)
+```
+
+## Volcano plot
+
+This is a ubiquitous and common visualization for this type of data that puts the log2 fold change and the adjusted p-value together in one plot that people can get insight for what is going on in the whole dataset results.
+
+```{r}
+library(ggplot2)
+```
+
+```{r}
+ggplot(res) + 
+  aes(log2FoldChange, padj) +
+  geom_point(alpha=0.3)
+```
+That plot was not very useful because we don't care about genes with high p-values
+
+Lets log the y-axis so we can see these genes/points more clearly:
+
+```{r}
+ggplot(res) + 
+  aes(log2FoldChange, -log(padj)) +
+  geom_point(alpha=0.3) 
+```
+
+To make this more useful we can add some guidelines
+
+```{r}
+ggplot(res) + 
+  aes(log2FoldChange, -log(padj)) +
+  geom_point(alpha = 0.3) +
+  geom_vline(xintercept = c(-2, 2), color = "darkgray", linetype = 2) +
+  geom_hline(yintercept = -log(0.05), color = "darkgray", linetype = 2) 
+  
+```
+
+
+## Save our results to date
+
+```{r}
+write.csv(res, file= "myresults.csv")
+```
+
+
+## Adding annotation data
+
+We need to "map" or "translate" our ENSEMBLE gene identifiers in our results object to date to the identifiers used in differentdatabases we want to use for learning more about these genes
+
+```{r, message=FALSE}
+library(AnnotationDbi)
+library(org.Hs.eg.db)
+```
+
+We can see the columns in `org.Hs.eg.db` that list the different databases we can mape between:
+
+```{r}
+columns(org.Hs.eg.db)
+```
+
+
+We can now use the `mapIDs()` function to map between these different database identifier formats
+
+```{r}
+res$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res), # Our genenames
+                     keytype="ENSEMBL",        # The format of our genenames
+                     column="SYMBOL",          # The new format we want to add
+                     multiVals="first")
+```
+
+```{r}
+head(res)
+```
+
+>Q11. Run the mapIds() function two more times to add the Entrez ID and UniProt accession and GENENAME as new columns called `res$entrez`, `res$uniprot` and `res$genename`.
+
+```{r}
+res$entrez <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res),
+                     column="ENTREZID",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+res$uniprot <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res),
+                     column="UNIPROT",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+res$genename <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res),
+                     column="GENENAME",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+head(res)
+```
+
+## Pathway analysis
+
+Now we have our annotated results with their log2 fold-change and p-values we can figure out which biological pathways and process these genes are involved with. 
+
+We will use the **gage** and **pathview** pachages for this step and install them with: `BiocManager::install( c("pathview", "gage", "gageData") )`
+
+```{r, message=FALSE}
+library(pathview)
+library(gage)
+library(gageData)
+```
+
+```{r}
+data(kegg.sets.hs)
+head(kegg.sets.hs, 2)
+```
+We need a vector of importance (e.g. fold-change values) that has gene ids as names. These names need to be in the correct format (using the correct database format for the IDS).
+
+Here we willl make a wee imput vector called `foldchanges` that has "entrez" ids as names. 
+
+```{r}
+foldchanges <- res$log2FoldChange
+names(foldchanges) <- res$entrez
+```
+
+Now we can run `gage()` to do our pathway analysis. 
+
+```{r}
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+```{r}
+attributes(keggres)
+```
+
+The top 3 overlapping pathways
+
+```{r}
+head(keggres$less, 3)
+```
+Now we can use the **pathview** package with the found KEGG pathway IDs to make a pathway figure showing our differential expressed genes (DEGs)
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa05310")
+```
+
+![](hsa05310.pathview.png)
+
+## Save our annotated results
+
+```{r}
+write.csv(res, file="myresults_annotated.csv")
+```
+
+
