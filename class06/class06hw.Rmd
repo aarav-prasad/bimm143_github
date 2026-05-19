@@ -1,0 +1,93 @@
+---
+title: "BIMM 143 Homework: Protein Drug Interaction Function"
+author: "Aarav Prasad"
+output: pdf_document
+---
+
+## Overview
+
+In this assignment, I created a function to analyze protein structures from PDB IDs.  
+The function reads PDB files, extracts B-factors from chain A alpha carbons, and plots them.  
+This generalizes the original repetitive code into a reusable function.
+
+## Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+library(bio3d)
+```
+
+## Function
+
+```{r}
+# Function: analyze_protein_set
+#
+# Inputs:
+#   pdb_ids = a vector of PDB IDs (e.g., c("4AKE", "1AKE", "1E4Y"))
+#   chain   = chain to analyze (default "A")
+#   elety   = atom type to keep (default "CA")
+#
+# What the function does:
+#   Reads each PDB structure, trims to the selected chain and atom type,
+#   extracts B-factors, and plots the B-factor profile for each protein.
+#
+# Output:
+#   Returns a list of B-factor vectors (one per protein) and produces plots.
+
+analyze_protein_set <- function(pdb_ids, chain = "A", elety = "CA") {
+  
+  results <- list()
+  
+  for (id in pdb_ids) {
+    
+    pdb <- read.pdb(id)
+    pdb_trim <- trim.pdb(pdb, chain = chain, elety = elety)
+    b_factors <- pdb_trim$atom$b
+    
+    plotb3(
+      b_factors,
+      sse = pdb_trim,
+      typ = "l",
+      ylab = "B-factor",
+      xlab = "Residue Position",
+      main = paste("B-factor Profile for", id)
+    )
+    
+    results[[id]] <- b_factors
+  }
+  
+  return(results)
+}
+```
+
+## Example Usage
+
+```{r fig.width=8, fig.height=4}
+protein_results <- analyze_protein_set(c("4AKE", "1AKE", "1E4Y"))
+```
+
+## Comparison of Proteins
+
+```{r fig.width=6, fig.height=4}
+bf_mat <- rbind(
+  protein_results[["4AKE"]],
+  protein_results[["1AKE"]],
+  protein_results[["1E4Y"]]
+)
+
+hc <- hclust(dist(bf_mat))
+plot(hc, main = "Clustering of Protein B-factor Profiles")
+```
+
+The dendrogram above shows the similarity between proteins based on their B-factor trends.  
+Proteins that cluster closer together have more similar flexibility patterns.
+
+## Discussion
+
+### Inputs
+The function takes a vector of PDB IDs and optional arguments for chain and atom type.
+
+### What the function does
+It reads each protein structure, extracts B-factors for chain A alpha carbons, and plots the B-factor profiles. This removes repetitive code and allows analysis of any number of proteins.
+
+### Output
+The function produces B-factor plots and returns a list of B-factor vectors that can be used for further analysis such as clustering.
