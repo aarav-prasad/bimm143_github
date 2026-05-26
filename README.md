@@ -12,16 +12,16 @@ Class 6: [R functions](class06/class06.md)
 
 Class 7: [Intro to machine learning for Bioinformatics](class07/class07.md)
 
-Class 8: [Unsupervised Learning Mini-Project]()
+Class 8: [Unsupervised Learning Mini-Project](class08/class08.md)
 
-Class 9: [Candy Mini-Project]()
+Class 9: [Candy Mini-Project](class09/class09.md)
 
-Class 10: [Structural Bioinformatics (pt1)]()
+Class 10: [Structural Bioinformatics (pt1)](class10/class10.md)
 
-Class 11: [Structural Bioinformatics (pt2. Focus on new AlphaFold2)]()
+Class 11: [Structural Bioinformatics (pt2. Focus on new AlphaFold2)](class11/class11.md)
 
-Class 12: [Genome informatics (online class)]()
+Class 12: [Genome informatics (online class)](class12/class12.md)
 
-Class 13: [Transcriptomics and the analysis of RNA-Seq data]()
+Class 13: [Transcriptomics and the analysis of RNA-Seq data](class13/class13.md)
 
-Class 14: [RNA-Seq analysis mini-project]()
+Class 14: [RNA-Seq analysis mini-project](class14/class14.md)
